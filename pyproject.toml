@@ -1,0 +1,37 @@
+[project]
+name = "shockwave-video-diffusion"
+version = "0.1.0"
+description = "Fine-tuning a pretrained video diffusion model (LTX-Video) as a surrogate for compressible-flow CFD."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = [
+    "accelerate",
+    "diffusers>=0.32.1",
+    "imageio[ffmpeg]",
+    "matplotlib",
+    "numpy",
+    "pillow",
+    "ptwt",
+    "pydantic>=2.10.4",
+    "rich",
+    "safetensors>=0.5.0",
+    "sentencepiece>=0.2.0",
+    "torch>=2.6.0",
+    "transformers",
+    "typer",
+    "wandb",
+    "pyyaml",
+    "h5py>=3.10",
+    "huggingface_hub",
+]
+
+[project.optional-dependencies]
+training = ["scipy"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["windinet"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

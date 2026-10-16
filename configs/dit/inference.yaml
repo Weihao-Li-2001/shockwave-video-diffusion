@@ -1,0 +1,47 @@
+# Inference: roll out a full simulation from its initial condition.
+#
+# Frame 0 is encoded with the VAE posterior mean (matching how the training
+# latents were encoded), the DiT generates the remaining frames in latent
+# space, and the VAE decoder maps them back to the 4 CFD fields.
+#
+# Usage:
+#   python scripts/inference_shockwave.py configs/dit/inference.yaml \
+#       --h5 data/euler_mq/256x256_ds/test.h5 --out_dir predictions/ --num_samples 8
+#   python scripts/eval_dit_vrmse.py configs/dit/inference.yaml --help
+
+# --- Checkpoints ---
+# The VAE MUST be the exact checkpoint the DiT's training latents were encoded
+# with; the pipeline checks a latent-space fingerprint and refuses to decode on
+# a mismatch.
+checkpoint: "outputs/dit/baseline/checkpoints/model_weights_best.safetensors"
+scalar_checkpoint: "outputs/dit/baseline/checkpoints/scalar_embedding_best.safetensors"
+vae_checkpoint: "outputs/vae/baseline/checkpoints/vae_shockwave_best.safetensors"
+
+# --- Model ---
+model_source: "LTXV_2B_0.9.6_DEV"
+
+# --- Dataset (initial conditions come from frame 0 of each simulation) ---
+h5: "data/euler_mq/256x256_ds/test.h5"
+
+# --- Channel normalization ---
+# Must be the stats the VAE was fine-tuned and the latents encoded with.
+# preprocess_dataset.py's normalization.json records both the stats and the
+# VAE checkpoint they belong to.
+normalization: "outputs/latents/baseline/normalization.json"
+
+# --- Generation ---
+num_inference_steps: 20    # denoising steps
+guidance_scale: 1.0        # 1.0 = no classifier-free guidance
+num_frames: 105            # generated length, must be 8k+1 for the LTX VAE
+num_output_frames: 101     # trim back to the true simulation length
+image_cond_noise_scale: 0.0  # the IC is exact physics -- do not perturb it
+seed: 42
+
+# --- Scalar conditioning ---
+# Must match the ranges used during DiT training (configs/dit/train.yaml).
+scalar_conditioning:
+  scalar_names: ["gamma"]
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4

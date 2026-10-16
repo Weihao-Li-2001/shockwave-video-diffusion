@@ -1,0 +1,80 @@
+# DiT training -- flow-matching fine-tune of the LTX-Video 2B transformer on
+# the latents of a fine-tuned VAE, conditioned on the scalar gamma (no text).
+#
+# The same recipe was used for every VAE in the study (8k steps, LR 1e-5
+# cosine, effective batch 32, seed 42); only the VAE that produced the
+# latents changes.
+#
+# 1. Encode the dataset with the fine-tuned VAE (see README):
+#      python scripts/preprocess_dataset.py data/euler_mq/256x256_ds/train.h5 \
+#          --output-dir outputs/latents/baseline \
+#          --inflate-checkpoint outputs/vae/baseline/checkpoints/vae_shockwave_best.safetensors \
+#          --eval-sims 500
+# 2. Train:
+#      accelerate launch --num_processes N scripts/train.py configs/dit/train.yaml
+#
+# Effective batch = batch_size x gradient_accumulation_steps x num_GPUs = 32
+# (8 GPUs x 4 here; use 32 / N for N GPUs).
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+  load_checkpoint: null
+
+conditioning:
+  first_frame_conditioning_p: 1.0   # frame 0 (the initial condition) stays clean
+
+scalar_conditioning:
+  enabled: true
+  scalar_names:
+    - "gamma"
+  scalar_ranges:
+    gamma: [1.0, 2.0]
+  embedding_dim: 4096
+  num_tokens_per_scalar: 4
+  fourier_features: 64
+  mlp_hidden_dim: 256
+  dropout: 0.1
+
+optimization:
+  learning_rate: 1e-5
+  steps: 8000
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  scheduler_type: "cosine"
+  scheduler_params:
+    eta_min: 1.0e-8
+  enable_gradient_checkpointing: true
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+data:
+  preprocessed_data_root: "outputs/latents/baseline"
+  num_dataloader_workers: 4
+
+validation:
+  data_root: "outputs/latents/baseline/val"   # written by --eval-sims
+  interval: 600
+  max_samples: 0                              # 0 = whole val split
+
+checkpoints:
+  interval: 120
+  keep_last_n: 2
+
+flow_matching:
+  timestep_sampling_mode: "shifted_logit_normal"
+  timestep_sampling_params: {}
+
+visualization:
+  enabled: false   # render panels post hoc with scripts/eval_dit_vrmse.py --save_vis_samples
+  interval: 2000
+
+wandb:
+  enabled: false
+  project: "shockwave-video-diffusion"
+  tags: ["dit", "baseline"]
+
+seed: 42
+output_dir: "outputs/dit/baseline"

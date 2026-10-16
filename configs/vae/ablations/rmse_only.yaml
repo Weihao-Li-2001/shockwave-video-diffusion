@@ -1,0 +1,82 @@
+# VAE ablation -- Loss: rmse_only
+#
+# Drop the H1 (gradient) term: loss = RMSE.
+#
+# Identical to configs/vae/baseline.yaml except for this one change
+# (see that file for launch instructions).
+
+model:
+  model_source: "LTXV_2B_0.9.6_DEV"
+
+adapter:
+  enabled: true
+  mode: "inflate"          # widen conv_in/conv_out 3 -> 4; new pressure slot starts at zero
+  freeze_conv_in: false
+  checkpoint: null
+  channels: ["density", "momentum_x", "momentum_y", "pressure"]
+  activation: "gelu"
+  default_temb: 0.0
+
+resume_from: null
+resume_weights_only: false
+
+data:
+  data_root: "data/euler_mq/256x256_ds/train.h5"
+  normalization_stats_file: "configs/data/euler_mq_256_stats.yaml"
+  normalization_clip: 5.0
+  num_sim_frames: null     # null = full 101-frame simulations
+  eval_sims: 500           # seeded hold-out from train.h5 for validation
+  num_dataloader_workers: 4
+
+optimization:
+  learning_rate: 5e-5      # linear warmup, then cosine decay to min_learning_rate
+  min_learning_rate: 1e-6
+  epochs: 20
+  batch_size: 1
+  gradient_accumulation_steps: 32
+  max_grad_norm: 5.0
+  weight_decay: 0.0
+  warmup_steps: 200
+  warmup_start_factor: 0.01
+  enable_gradient_checkpointing: true
+
+loss_weighting:
+  weights:                 # total loss = sum(weight * term)
+    rmse: 1.0
+    h1: 0.0
+    ssim: 0.0
+    mlw: 0.0
+
+loss:
+  wavelet: "db2"
+  spatial_level: 2
+  temporal_level: 2
+  mlw_beta: 10.0
+  mlw_eps: 1.0e-6
+
+visualization:
+  enabled: true
+  interval_epochs: 4
+  num_samples: 3
+  frame_numbers: [25, 50, 75, 100]
+  dpi: 150
+
+acceleration:
+  mixed_precision_mode: "bf16"
+  compile_with_inductor: false
+
+checkpoints:
+  interval: 1
+  save_best_only: true
+  best_metric: "val_vrmse"
+  save_last_state: true
+  keep_last_n: 1
+
+wandb:
+  enabled: false
+  project: "shockwave-video-diffusion"
+  tags: ["vae", "ablation", "rmse_only"]
+
+seed: 42
+output_dir: "outputs/vae/rmse_only"
+clean_output_dir: true
